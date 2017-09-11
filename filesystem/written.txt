@@ -1,0 +1,92 @@
+1. Exercise 9.11
+
+Answer:
+
+a. FCFS
+2150 -> 2069 -> 1212 -> 2296 -> 2800 -> 544 -> 1618 -> 356 -> 1523 -> 4965 -> 3681
+Distance: 81 + 857 + 1084 + 504 + 2256 + 1074 + 1262 + 1167 + 3442 + 1284 = 13011
+
+b. SSTF
+2150 -> 2069 -> 2296 -> 2800 -> 3681 -> 4965 -> 1618 -> 1523 -> 1212 -> 544 -> 356
+Distance: 81 + 227 + 504 + 881 + 1284 + 3347 + 95 + 311 + 668 + 188 = 7586
+
+c. SCAN
+2150 -> 2296 -> 2800 -> 3681 -> 4965 -> 4999 -> 2069 -> 1618 -> 1523 -> 1212 -> 544 -> 356
+Distance: 146 + 504 + 881 + 1284 + 34 + 2930 + 451 + 95 + 311 + 668 + 188 = 7492
+
+d. LOOK
+2150 -> 2296 -> 2800 -> 3681 -> 4965 -> 2069 -> 1618 -> 1523 -> 1212 -> 544 -> 356
+Distance: 146 + 504 + 881 + 1284 + 2896 + 451 + 95 + 311 + 668 + 188 = 7424
+
+e. C-SCAN
+2150 -> 2296 -> 2800 -> 3681 -> 4965 -> 4999 -> 0 -> 356 -> 544 -> 1212 -> 1523 -> 1618 -> 2069
+Distance: 146 + 504 + 881 + 1284 + 34 + 4999 + 356 + 188 + 668 + 311 + 95 + 451 = 9917
+
+f. C-LOOK
+2150 -> 2296 -> 2800 -> 3681 -> 4965 -> 356 -> 544 -> 1212 -> 1523 -> 1618 -> 2069
+Distance: 146 + 504 + 881 + 1284 + 4609 + 188 + 668 + 311 + 95 + 451 = 9137
+
+--------------------------------------------------------------------------------
+2. Exercise 9.14
+
+Answer:
+
+SSD is more reliable than traditional hard disks because it has no moving parts,
+and faster because it has no seek time and latency. But to replace hard disks 
+the advantages are SSD has less capacity and shorter life spans, and is more 
+expensive than hard disks.
+
+--------------------------------------------------------------------------------
+3. Exercise 9.21
+
+Answer:
+
+a. The 750,000 hours divided by 1,000 drivers gives a 750 hours per failure, 
+which is approximately once a month.
+
+b. From age 20 to 21 there are 8,760 hours, in which there is 0.001 possibility 
+to "fail", so the MTBF is 8,760,000 hours per failure. For one person that is 
+about 1,000 years of lifespan, which does not make sense. 
+
+c. 1 million hours is about 114 years, so it takes this long time for a disk 
+drive to fail, which indicates that the disk will probably never fail in its 
+lifetime, given the lifetime of a disk drive is usually not that long.
+
+--------------------------------------------------------------------------------
+4. Exercise 10.10
+
+Answer:
+
+The OS should maintain just one table of open files, so that some information 
+can be handled in a centralized way. For example the deletion of a file must not 
+happen when some process is having the file opened, which can be implemented 
+only if all processes share the same open-file table.
+
+There should separate entries for different processes as some information about 
+the file, such as the location or permissions, differ for the processes.
+
+--------------------------------------------------------------------------------
+5. Exercise 11.16
+
+Answer:
+
+Each block has 8K / 4 = 2048 pointers. So the total size is:
+12 * 8K + 2048 * 8K + 2048^2 * 8K + 2048^3 * 8K = 64TB
+
+--------------------------------------------------------------------------------
+6. Exercise 12.13
+
+Answer:
+
+Blocking I/O is used when the application is waiting for one specific I/O event,
+such as a keyboard input, a disk read or a mouse click. Non-blocking I/O suits
+the situations when the application requires I/O events with multiple devices in
+some undetermined order, such as a UI application that takes keyboard and mouse
+input as well as displaying data on screen, a multimedia player that reads data
+from disk, decodes it and plays it on both screen and microphone, or a file
+transfer application that listens to and transfers data on multiple sockets.
+
+Blocking I/O codes tends to be easier than non-blocking ones to implement and 
+maintain. The busy-waiting is less efficient than blocking I/O, as the kernel 
+keeps checking the status every now and then, while blocking I/O will not bother 
+the kernel until the interrupt bring it back to the run queue.

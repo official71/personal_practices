@@ -1,0 +1,80 @@
+1. Set the program to record IPC for the zygote process and start some new
+applications. Is the zygote doing IPC? If not, what could be the role of
+zygote?
+
+Answer:
+
+We started recording the process "zygote64" and started several applications.
+The zygote process does not do IPC with the applications we launched. We also
+noticed that all the applications are child processes of zygote64, which leads
+us to think that the zygote process may work like a shell, and the
+applications processes are all created by the shell. Of course there is no
+data transaction between the shell and its child processes. Then we Googled it
+and the result (https://anatomyofandroid.com/2013/10/15/zygote) confirmed our
+guess: zygote is a process started by init and is used to launch applications.
+The way it starts application is by fork(), which is the same as what shell
+does.
+
+------------------------------------------------------------------------------
+2. Set the program to record IPC for a number of applications and use the
+applications while you're recording IPC. Is there some set of common processes
+that all applications seem to communicate with? Why could that be?
+
+Answer:
+
+Results of IPC recording are listed below:
+-----------------------------------------------------------------------
+NAME(PID)		BYTES	TRANS	PEERS
+-----------------------------------------------------------------------
+.android.dialer		850984	4134	audioserver	848	1041
+(1678)					putmethod.latin	1184	10039
+					surfaceflinger	841	1000
+					d.process.acore	1710	10001
+					m.android.phone	1349	1001
+					servicemanager	840	1000
+					system_server	993	1000
+-----------------------------------------------------------------------
+droid.messaging		206264	1354	d.process.acore	1710	10001
+(2044)					putmethod.latin	1184	10039
+					m.android.phone	1349	1001
+					servicemanager	840	1000
+					surfaceflinger	841	1000
+					system_server	993	1000
+-----------------------------------------------------------------------
+droid.gallery3d		191068	2283	servicemanager	840	1000
+(2106)					system_server	993	1000
+					surfaceflinger	841	1000
+-----------------------------------------------------------------------
+.android.camera 	34024	317	cameraserver	849	1047
+(2200)					servicemanager	840	1000
+					system_server	993	1000
+					surfaceflinger	841	1000
+-----------------------------------------------------------------------
+cameraserver 		972	10	system_server	993	1000
+(849)					.android.camera	2200	10040
+-----------------------------------------------------------------------
+
+The first four processes are applications (phone dialer, message, photo
+gallery and camera), and the last is a system service (whose parent is not
+zygote64 but init). The common processes that all the recorded applications
+communicate with are the following:
+
+- surfaceflinger, child of init, controlling screen display;
+- servicemanager, child of init, acting as the yellow pages when applications 
+  call Binder;
+- system_server, child of zygote64, core process among all applications, 
+  providing context for other applications.
+(Reference: https://anatomyofandroid.com/ for the function of these processes)
+
+------------------------------------------------------------------------------
+3. Calculate the average size of a Binder message. What does the size of the
+Binder messages tell you about the type of IPC messages being passed through
+Binder. Which other IPC mechanism may be a better choice for sharing very
+large amounts of data between applications?
+
+Answer:
+
+The average size of a Binder message is 100-200 bytes. Since the data size is
+relatively small, the IPC can be efficiently performed via message passing.
+When data is very large then the other IPC mechanism - memory sharing would be
+a better choice.

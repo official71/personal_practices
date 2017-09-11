@@ -1,0 +1,257 @@
+------------------------------------------------------------------------------
+1. Exercise 3.9
+Describe the actions taken by a kernel to context-switch between processes.
+
+Answer: 
+
+The kernel saves the context of the old process in its Process Control
+Block (PCB) and loads the saved context of the new process scheduled to run
+into the CPU. The context stored in PCB includes process state, program
+counter, registers, scheduling information, memory-management information,
+etc.
+
+------------------------------------------------------------------------------
+2. Exercise 3.10 for your Android system, submitted as ASCII art.
+Construct a process tree similar to Figure 3.8. To obtain process information
+for the UNIX or Linux system, use the command ps -ael. Use the command man ps
+to get more information about the ps command. The task manager on Windows
+systems does not provide the parent process ID, but the process monitor tool,
+available from technet.microsoft.com, provides a process-tree tool.
+
+Answer: 
+
+The following process tress follows the file-system format. Each indentation
+indicates a parent-child relationship. Each process is represented as
+"(pid)name".
+
+(1)/init
+    (1862)/sbin/adbd
+        (1930)/system/bin/sh
+            (1946)ps
+    (556)/sbin/ueventd
+    (807)/system/bin/logd
+    (808)/system/bin/debuggerd
+        (817)debuggerd:signaller
+    (809)/system/bin/debuggerd64
+        (816)debuggerd64:signaller
+    (810)/system/bin/vold
+        (1176)/system/bin/sdcard
+    (837)/sbin/healthd
+    (839)/system/bin/lmkd
+    (840)/system/bin/servicemanager
+    (841)/system/bin/surfaceflinger
+    (844)/system/bin/sh
+    (846)zygote64
+        (1169)com.android.inputmethod.latin
+        (1182)com.android.systemui
+        (1379)com.android.phone
+        (1393)com.android.settings
+        (1514)android.ext.services
+        (1554)android.process.media
+        (1570)com.android.launcher3
+        (1611)com.android.printspooler
+        (1653)com.android.quicksearchbox
+        (1702)com.android.calendar
+        (1740)com.android.email
+        (1755)com.android.providers.calendar
+        (1777)com.android.managedprovisioning
+        (1792)com.android.messaging
+        (974)system_server
+    (847)zygote
+    (848)/system/bin/audioserver
+    (849)/system/bin/cameraserver
+    (850)/system/bin/drmserver
+    (851)/system/bin/installd
+    (852)/system/bin/keystore
+    (853)media.codec
+    (854)/system/bin/mediadrmserver
+    (855)media.extractor
+    (856)/system/bin/mediaserver
+    (857)/system/bin/netd
+    (858)/system/bin/rild
+    (860)/system/bin/fingerprintd
+    (861)/system/bin/gatekeeperd
+    (862)/system/xbin/perfprofd
+(2)kthreadd
+    (10)rcu_sched
+    (11)khelper
+    (12)kworker/u2:1
+    (202)writeback
+    (204)bioset
+    (206)kblockd
+    (3)ksoftirqd/0
+    (300)kworker/0:1
+    (301)rpciod
+    (310)kswapd0
+    (366)fsnotify_mark
+    (382)nfsiod
+    (393)crypto
+    (5)kworker/0:0H
+    (518)kpsmoused
+    (523)kworker/0:2
+    (537)binder
+    (555)deferwq
+    (6)kworker/u2:0
+    (7)migration/0
+    (795)kworker/0:1H
+    (796)jbd2/vda-8
+    (798)ext4-rsv-conver
+    (8)rcu_preempt
+    (800)jbd2/vdb-8
+    (801)ext4-rsv-conver
+    (805)jbd2/vdc-8
+    (806)ext4-rsv-conver
+    (818)kauditd
+    (9)rcu_bh
+
+------------------------------------------------------------------------------
+3. On all current computers, at least part of the interrupt handlers are 
+written in assembly language. Why?
+
+Answer: 
+
+Because the interrupt handler is architecture dependent. For example,
+a system call handler must be able to read the system call number and
+parameters that the user process fed into the register when making the
+syscall, and this has to be done with assembly codes.
+
+------------------------------------------------------------------------------
+4. Read the Linux source code and construct a state diagram to represent the 
+relevant states that a process may be in at any given time. For each state, 
+give the exact name used for the state in the source code.
+
+Answer:
+
+                              STOPPED
+                              /     ^
+                             /       \
+                            v         \
+create task -> RUNNING(runnable) -> RUNNING(on CPU) -> ZOMBIE -> DEAD
+                       ^                   |
+                       |                   v
+                       |             INTERRUPTIBLE/
+                     WAKING <------ UNINTERRUPTIBLE/
+                                        WAKEKILL
+
+--------------------------------------------------------------------
+STATE                               MACRO NAME              VALUE	
+--------------------------------------------------------------------
+running or runnable                 TASK_RUNNING            0
+sleeping, can be waked by signal    TASK_INTERRUPTIBLE      1
+sleeping, can't be waked by signal  TASK_UNINTERRUPTIBLE    2
+stopped by signals                  __TASK_STOPPED          4
+traced by other processes           __TASK_TRACED           8
+(also exit state) zombie            EXIT_ZOMBIE             16
+(also exit state) terminated        EXIT_DEAD               32
+terminated                          TASK_DEAD               64
+sleeping, wake by deadly signal     TASK_WAKEKILL           128
+intermediate from sleeping to wake  TASK_WAKING             256
+parked                              TASK_PARKED             512
+---------------------------------------------------------------------
+
+------------------------------------------------------------------------------
+5. Describe what happens in the Linux kernel when a fork system call occurs. 
+Be sure to list the important procedures that are called and explain the 
+function of each. You can model your answer according to this example:
+
+The system call calls into this main function.
+The main function is called with the following parameters (explain their role)
+: ...
+The main function performs the following important actions (explain each major 
+step involved):
+
+Answer:
+
+The system call calls into this main function:
+- do_fork() in (kernel/fork.c)
+
+The function do_fork() has following parameters:
+- clone_flags, flag for different processing cloning categories, when fork() 
+  calls it is passed as SIGCHLD
+- stack_start, address of the stack of child process, fork() passes 0
+- stack_size, size of stack of child process, fork() passes 0
+- parent_tidptr, pointer to the pid of parent process, fork() passes NULL
+- child_tidptr, pointer to the pid of child process, fork() passes NULL
+
+The function do_fork() performs the following important actions:
+- validate the input clone_flag
+- call copy_process() to copy the parent process into a child process, the 
+  clone_flag determines whether the resources of the child is either cloned or
+  shared with the parent. Initialize the new task_struct of the child process
+- call task_pid_vnr() to assign the pid of new process under current name space
+- do special procedures for vfork(), which fork() procedure does not concern
+- call wake_up_new_task() to add child into scheduler, which allows the 
+  scheduler to run child before parent process
+- return the assigned pid or error code
+
+------------------------------------------------------------------------------
+6. Describe what happens in the Linux kernel when a process exits and which
+main causes there are for it to exit. You should specifically mention when the
+reference counters for the task_struct is decremented, how other users of the
+dying process' task_struct can be guaranteed to validly access the data
+structure, and finally when and where the task_struct is finally freed. Your
+response should include a description of other important events that take
+place when a process exits and should follow the format from Problem 5.
+
+Answer:
+
+When processes exit they all call into this main function:
+- do_exit() in (kernel/exit.c)
+
+The function do_exit() has only one parameter:
+- code, the status code specified by the caller
+
+The function do_exit() performs the following important actions:
+- set PF_EXITING flag in tast_struct to indicate the process is exiting
+- call acct_update_integrals() to write out accounting information
+- call exit_itimers() to clear timers
+- assign the input code to the exit_code in task_struct for reference by parent
+- call exit_**() to release the associated resources of the process, including 
+  mm_struct for memory management, dequeuing IPC, decrementing the counters of
+  associated file descriptors and fs data so they are released by kernel when
+  counters reach zero, freeing thread structures, etc.
+- call exit_notify() to send signals to the parent, if parent is dead then
+  re-parent to the init, set the exit_state in task_struct to EXIT_ZOMBIE
+- call schedule() to switch to other processes, since the task exit state is 
+  set to zombie, the scheduler will never run this process any more
+- do_exit() does not return
+
+After do_exit() the task is basically released and freed, except the structure
+task_struct and a few of its information such as thread info and kernel stack.
+The task stays in EXIT_ZOMBIE state until its parent calls wait() or signals
+the kernel that it's no longer interested. Then the task_struct of the task is
+freed in the function wait_task_zombie() called by parent.
+
+------------------------------------------------------------------------------
+7. Exercise 4.6
+Provide two programming examples in which multithreading does not provide 
+better performance than a singlethreaded solution.
+
+Answer:
+
+1. A program that cannot be divided into parallel components, such as a
+straightforward sequential math computation, in which case according to the
+Amdahl's Law the best speed-up is 1, which means that multithreading cannot
+provide any improvement to the performance. 
+
+2. If a program has multiple threads that frequently interact with each other,
+but is running on a single- core processor, the performance will be poorer due
+to the overhead of frequent context-switching.
+
+------------------------------------------------------------------------------
+8. Exercise 4.9
+Can a multithreaded solution using multiple user-level threads achieve better 
+performance on a multiprocessor system than on a singleprocessor system? 
+Explain.
+
+Answer:
+
+Yes.  On a single-processor system, the CPU is capable of executing only one
+thread at a time, therefore even if the process is multithreaded, the threads
+can only run concurrently but not simultaneously, which means the threads make
+progress together within a period of time, but at one specific time only one
+can be running.   
+
+On a multi-processor system, the CPU cores allow the threads to achieve real
+parallelism, at any time multiple threads can run simultaneously on different
+cores, so the program has better performance than on a single-core CPU.

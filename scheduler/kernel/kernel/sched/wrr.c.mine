@@ -1,0 +1,327 @@
+/*
+ * Weighted Round-Robin Scheduling Class (mapped to the SCHED_WRR policy)
+ */
+
+#include "sched.h"
+#include <linux/slab.h>
+
+//#define WRR_TIMESLICE	10
+//#define WRR_DEFAULT_WEIGHT	10
+
+int sched_wrr_timeslice = WRR_TIMESLICE;
+static int wrr_unit_timeslice = WRR_TIMESLICE; /* unit timeslice */
+static int wrr_non_boost_weight = WRR_NON_BOOST_WEIGHT;
+static int wrr_def_weight = WRR_DEF_WEIGHT;
+//const struct sched_class wrr_sched_class;
+
+/* cpu runqueue to which this cfs_rq is attached */
+static inline struct rq *rq_of(struct cfs_rq *cfs_rq)
+{
+	return cfs_rq->rq;
+}
+
+/* An entity is a task if it doesn't "own" a runqueue */
+#define entity_is_task(se)      (!se->my_q)
+
+static inline struct task_struct *task_of(struct sched_entity *se)
+{
+#ifdef CONFIG_SCHED_DEBUG
+	WARN_ON_ONCE(!entity_is_task(se));
+#endif
+	return container_of(se, struct task_struct, se);
+}
+
+static inline struct task_struct *wrr_task_of(struct sched_wrr_entity *wrr_se)
+{
+	return container_of(wrr_se, struct task_struct, wrr);
+}
+
+void init_wrr_rq(struct wrr_rq *wrr_rq)
+{
+	pr_info("Called %s with wrr_rq %p\n", __func__, wrr_rq);
+
+	wrr_rq->wrr_nr_running = 0;
+	INIT_LIST_HEAD(&wrr_rq->wrr_rq_list);
+	raw_spin_lock_init(&wrr_rq->wrr_rq_lock);
+#ifdef CONFIG_SMP
+	wrr_rq->wrr_total_timeslice = 0;
+#endif
+}
+static void enqueue_task_wrr(struct rq *rq, struct task_struct *p, int flags)
+{
+	//printk("Called %s with rq %p, ts %d, %s\n", __func__, rq,
+	//       p->cred->uid, p->comm);
+
+	struct wrr_rq *wrr_rq = &rq->wrr;
+	struct sched_wrr_entity *wrr_se = &p->wrr;
+
+	if (p->cred->uid >= 10000)
+		wrr_se->wrr_weight = wrr_def_weight;
+	else
+		wrr_se->wrr_weight = wrr_non_boost_weight;
+	wrr_se->wrr_timeslice = wrr_se->wrr_weight * wrr_unit_timeslice;
+
+	raw_spin_lock(&wrr_rq->wrr_rq_lock);
+
+	list_add_tail(&wrr_se->run_list, &wrr_rq->wrr_rq_list);
+	wrr_rq->wrr_nr_running++;
+#ifdef CONFIG_SMP
+	wrr_rq->wrr_total_timeslice += wrr_se->wrr_timeslice;
+#endif
+
+	raw_spin_unlock(&wrr_rq->wrr_rq_lock);
+
+	wrr_se->wrr_old_tl = wrr_se->wrr_timeslice;
+	inc_nr_running(rq);
+
+	//printk("Leaving %s with wrr_rq %d, %ld, se %d, %d\n", __func__,
+	//       wrr_rq->wrr_nr_running, wrr_rq->wrr_total_timeslice,
+	//       wrr_se->wrr_old_tl, wrr_se->wrr_timeslice);
+}
+
+static void dequeue_task_wrr(struct rq *rq, struct task_struct *p, int flags)
+{
+	//printk("Called %s with rq %p, ts %p, %s\n", __func__, rq, p, p->comm);
+
+	struct wrr_rq *wrr_rq = &rq->wrr;
+	struct sched_wrr_entity *wrr_se = &p->wrr;
+
+	raw_spin_lock(&wrr_rq->wrr_rq_lock);
+
+	list_del_init(&wrr_se->run_list);
+	wrr_rq->wrr_nr_running--;
+#ifdef CONFIG_SMP
+	wrr_rq->wrr_total_timeslice -= wrr_se->wrr_old_tl;
+#endif
+
+	raw_spin_unlock(&wrr_rq->wrr_rq_lock);
+
+	dec_nr_running(rq);
+
+	//printk("Leaving %s with wrr_rq %d, %ld, se %d, %d\n", __func__,
+	//       wrr_rq->wrr_nr_running, wrr_rq->wrr_total_timeslice,
+	//       wrr_se->wrr_old_tl, wrr_se->wrr_timeslice);
+}
+
+static void requeue_task_wrr(struct rq *rq, struct task_struct *p, int flags)
+{
+	//printk("Called %s with rq %p, ts %p, %s\n", __func__, rq, p, p->comm);
+
+	struct wrr_rq *wrr_rq = &rq->wrr;
+	struct sched_wrr_entity *wrr_se = &p->wrr;
+
+	raw_spin_lock(&wrr_rq->wrr_rq_lock);
+	if (wrr_rq->wrr_nr_running > 1)
+		list_move_tail(&wrr_se->run_list, &wrr_rq->wrr_rq_list);
+#ifdef CONFIG_SMP
+	wrr_rq->wrr_total_timeslice -= (wrr_se->wrr_old_tl -
+					wrr_se->wrr_timeslice);
+#endif
+	raw_spin_unlock(&wrr_rq->wrr_rq_lock);
+
+	wrr_se->wrr_old_tl = wrr_se->wrr_timeslice;
+
+	//printk("Leaving %s with wrr_rq %d, %ld, se %d, %d\n", __func__,
+	//       wrr_rq->wrr_nr_running, wrr_rq->wrr_total_timeslice,
+	//       wrr_se->wrr_old_tl, wrr_se->wrr_timeslice);
+}
+
+static void yield_task_wrr(struct rq *rq) { }
+
+static void check_preempt_wakeup_wrr(struct rq *rq, struct task_struct *p,
+		int flags) { }
+static struct task_struct *pick_next_task_wrr(struct rq *rq)
+{
+	//printk("Called %s with rq %p\n", __func__, rq);
+
+	struct wrr_rq *wrr_rq = &rq->wrr;
+	struct sched_wrr_entity *wrr_se;
+
+	//printk("wrr_rq %p, %d, %ld\n", wrr_rq, wrr_rq->wrr_nr_running,
+	//       wrr_rq->wrr_total_timeslice);
+	if (!wrr_rq->wrr_nr_running)
+		return NULL;
+
+	wrr_se = list_entry(wrr_rq->wrr_rq_list.next,
+		    struct sched_wrr_entity, run_list);
+
+	struct task_struct *p = wrr_task_of(wrr_se);
+	//printk("ts %p, %s\n", p, p->comm);
+	return p;
+}
+
+static void put_prev_task_wrr(struct rq *rq, struct task_struct *prev)
+{
+
+}
+
+#ifdef CONFIG_SMP
+static int select_task_rq_wrr(struct task_struct *p, int sd_flag,
+		int wake_flags)
+{
+	//printk("Called %s with ts %p, %s\n", __func__, p, p->comm);
+
+	struct rq *rq;
+	struct wrr_rq *wrr_rq;
+	int cpu, idle_cpu = -1;
+	unsigned long load, min_load = ULONG_MAX;
+
+	for_each_online_cpu(cpu) {
+		rq = cpu_rq(cpu);
+		wrr_rq = &rq->wrr;
+		load = wrr_rq->wrr_total_timeslice;
+
+		if (load < min_load) {
+			min_load = load;
+			idle_cpu = cpu;
+		}
+	}
+
+	//printk("idle_cpu %d\n", idle_cpu);
+	if (idle_cpu == -1)
+		return task_cpu(p);
+	else
+		return idle_cpu;
+}
+
+static void set_curr_task_wrr(struct rq *rq)
+{
+
+}
+
+static void set_cpus_allowed_wrr(struct task_struct *p,
+				 const struct cpumask *new_mask)
+{
+	//printk("Called %s\n", __func__);
+}
+
+static void rq_online_wrr(struct rq *rq)
+{
+	//printk("Called %s\n", __func__);
+}
+
+static void rq_offline_wrr(struct rq *rq)
+{
+	//printk("Called %s\n", __func__);
+}
+
+static void task_waking_wrr(struct task_struct *p)
+{
+	//printk("Called %s with ts %p, %s\n", __func__, p, p->comm);
+}
+#endif
+
+
+static void task_tick_wrr(struct rq *rq, struct task_struct *p, int queued)
+{
+	//printk("Called %s with rq %p, ts %p, %s\n", __func__, rq, p, p->comm);
+
+	struct sched_wrr_entity *wrr_se = &p->wrr;
+
+	//printk("se %p, %d, %d\n", wrr_se, wrr_se->wrr_weight,
+	//       wrr_se->wrr_timeslice);
+	if (--wrr_se->wrr_timeslice)
+		return;
+
+	/* timeslice has decreased to 0 */
+	if (wrr_se->wrr_weight > 1)
+		wrr_se->wrr_weight--;
+	wrr_se->wrr_timeslice = wrr_se->wrr_weight * wrr_unit_timeslice;
+
+	//printk("update se %p, %d, %d\n", wrr_se, wrr_se->wrr_weight,
+	//       wrr_se->wrr_timeslice);
+	requeue_task_wrr(rq, p, 0);
+	//set_tsk_need_resched(p);
+	resched_task(rq->curr);
+}
+
+static void prio_changed_wrr(struct rq *rq, struct task_struct *p, int oldprio)
+{
+
+}
+
+static void switched_from_wrr(struct rq *rq, struct task_struct *p)
+{
+
+}
+
+static void switched_to_wrr(struct rq *rq, struct task_struct *p)
+{
+
+}
+static unsigned int get_rr_interval_wrr(struct rq *rq, struct task_struct *task)
+{
+	return 0;
+}
+
+/* function for syscall get_wrr_info */
+int __get_wrr_info(struct wrr_info *p)
+{
+	struct rq *rq;
+	struct wrr_rq *wrr_rq;
+	int cpu, nr_cpu = 0;
+
+	for_each_online_cpu(cpu) {
+		if (nr_cpu >= MAX_CPUS)
+			break;
+
+		rq = cpu_rq(cpu);
+		wrr_rq = &rq->wrr;
+		
+		raw_spin_lock(&wrr_rq->wrr_rq_lock);
+		p->nr_running[nr_cpu] = (int)wrr_rq->wrr_nr_running;
+		p->total_weight[nr_cpu] = (int)wrr_rq->wrr_total_timeslice;
+		raw_spin_unlock(&wrr_rq->wrr_rq_lock);
+
+		nr_cpu++;
+	}
+	p->num_cpus = nr_cpu;
+
+	return nr_cpu;
+}
+
+/* function for syscall set_wrr_weight */
+void __set_wrr_weight(int new_weight)
+{
+	wrr_def_weight = new_weight;
+}
+
+/*
+ * All the scheduling class methods:
+ */
+const struct sched_class wrr_sched_class = {
+
+	.next                   = &fair_sched_class,
+	.enqueue_task           = enqueue_task_wrr,
+	.dequeue_task           = dequeue_task_wrr,
+	.yield_task             = yield_task_wrr,
+
+	.check_preempt_curr     = check_preempt_wakeup_wrr,
+
+	.pick_next_task         = pick_next_task_wrr,
+	.put_prev_task          = put_prev_task_wrr,
+
+#ifdef CONFIG_SMP
+	.select_task_rq         = select_task_rq_wrr,
+	.set_cpus_allowed       = set_cpus_allowed_wrr,
+	.rq_online              = rq_online_wrr,
+	.rq_offline             = rq_offline_wrr,
+
+	.task_waking            = task_waking_wrr,
+#endif
+	.set_curr_task          = set_curr_task_wrr,
+	.task_tick              = task_tick_wrr,
+	.prio_changed           = prio_changed_wrr,
+	.switched_from          = switched_from_wrr,
+	.switched_to            = switched_to_wrr,
+
+	.get_rr_interval        = get_rr_interval_wrr,
+};
+
+#ifdef CONFIG_SCHED_DEBUG
+
+void print_wrr_stats(struct seq_file *m, int cpu)
+{
+	pr_info("Called %s\n", __func__);
+}
+#endif

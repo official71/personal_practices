@@ -1,0 +1,184 @@
+1.
+Exercise 6.13
+In Chapter 5, we discussed possible race conditions on various kernel data
+structures. Most scheduling algorithms maintain a run queue, which lists
+processes eligible to run on a processor. On multicore systems, there are two
+general options: (1) each processing core has its own run queue, or (2) a single
+run queue is shared by all processing cores. What are the advantages and
+disadvantages of each of these approaches?
+
+Answer:
+
+(1) When each processing core has its own run queue, usually the scheduling on a
+certain processor does not block that of another, thus the system will be more
+responsive. However the implementation of load balancing is more complicated,
+as we have to evaluate through multiple run queues and carefully deal with the
+locking.
+
+(2) For a single shared run queue, the advantage is that load balancing is much
+easier, as all tasks must go through one single queue. On the other hand, when
+one processor is accessing the queue, it holds the lock so all other processors
+have to wait for it, which causes performance issue.
+
+-------------------------------------------------------------------------------
+2.
+Exercise 6.16
+Consider the following set of processes, with the length of the CPU burst given 
+in milliseconds:
+Process 	Burst Time 	Priority
+P1 		2 		2 
+P2 		1 		1 
+P3 		8 		4 
+P4 		4 		2 
+P5 		5 		3
+
+The processes are assumed to have arrived in the order P1, P2, P3, P4, P5, all
+at time 0. 
+a. Draw four Gantt charts that illustrate the execution of these processes using 
+the following scheduling algorithms: FCFS, SJF, nonpreemptive priority (a larger 
+priority number implies a higher priority), and RR (quantum = 2). 
+b. What is the turnaround time of each process for each of the scheduling
+algorithms in part a? c. What is the waiting time of each process for each of
+these scheduling algorithms? d. Which of the algorithms results in the minimum
+average waiting time (over all processes)?
+
+Answer:
+
+a. Gantt charts:
+
+- FCFS
+  --------------------------------------------
+ | P1 |P2| P3             | P4     | P5       | 
+  --------------------------------------------
+ 0    2  3                11       15         20
+
+- SJF
+  --------------------------------------------
+ |P2| P1 | P4     | P5       | P3             | 
+  --------------------------------------------
+ 0  1    3        7          12               20
+
+- nonpreemptive priority
+  --------------------------------------------
+ | P3             | P5       | P1 | P4     |P2| 
+  --------------------------------------------
+ 0                8          13   15       19 20
+
+- RR
+  --------------------------------------------------
+ | P1 |P2| P3 | P4 | P5 | P3 | P4 | P5 | P3 |P5| P3 |
+  --------------------------------------------------
+ 0    2  3    5    7    9    11   13   15   17 18   20
+
+b. Table of turnaround time:
+
+Process 	P1	P2	P3	P4	P5
+---------------------------------------------------
+FCFS		2 	3 	11 	15 	20
+SJF		3 	1 	20 	7 	12
+Pri		15 	20 	8 	9 	13
+RR		2 	3 	20 	13 	18
+
+c. Table of waiting time:
+
+Process 	P1	P2	P3	P4	P5	avg
+-------------------------------------------------------------
+FCFS		0 	2 	3 	11 	15	6.2
+SJF		1 	0 	12 	3 	7	4.6
+Pri		13 	19 	0 	15 	8	11
+RR		0 	2 	12 	9 	13	7.2
+
+d. SJF algorithm has the minimum average waiting time.
+
+-------------------------------------------------------------------------------
+3.
+Exercise 6.27
+Consider the scheduling algorithm in the Solaris operating system for time-
+sharing threads. 
+a. What is the time quantum (in milliseconds) for a thread with priority 15? 
+With priority 40? 
+b. Assume that a thread with priority 50 has used its entire time quantum 
+without blocking. What new priority will the scheduler assign this thread? 
+c. Assume that a thread with priority 20 blocks for I/O before its time quantum 
+has expired. What new priority will the scheduler assign this thread?
+
+Answer:
+
+a. 160 milliseconds for priority 15; 40 milliseconds for priority 40.
+b. 40
+c. 52
+
+-------------------------------------------------------------------------------
+4.
+Exercise 6.28
+Assume that two tasks A and B are running on a Linux system. The nice values of
+A and B are −5 and +5, respectively. Using the CFS scheduler as a guide,
+describe how the respective values of vruntime vary between the two processes
+given each of the following scenarios:
+• Both A and B are CPU-bound.
+• A is I/O-bound, and B is CPU-bound.
+• A is CPU-bound, and B is I/O-bound.
+
+Answer:
+
+A has higher priority than B.
+
+• If A and B are both CPU-bound, they tend to exhaust their time period. Since B
+has higher decay rate than A, the vruntime of B will be higher than A.
+
+• A is I/O-bound so it usually runs for a small period of time and does not use
+all its time period, while B usually uses all the time period and has lower
+priority. Therefore the vruntime of B will be higher than A.
+
+• A is CPU-bound so it usually takes more time to run than an I/O-bound task,
+however the priority of A is higher so it has smaller decay rate. In this case
+it is uncertain which value of vruntime is larger between A and B.
+
+-------------------------------------------------------------------------------
+5.
+When a process forks a child, both parent and child processes are runnable.
+Assuming there are no other processes in the system and a single CPU system,
+explain how the Linux 3.10 default scheduler will schedule the parent and child
+processes, including which process will run after the execution of fork.
+
+Answer:
+
+When forking a child process, the function calls from do_fork() ->
+copy_process() -> sched_fork(). In sched_fork(), if the priority of task is not
+RT, it is assigned to the default scheduler CFS. Then the task_fork() function
+of CFS sched-class is called, which is task_fork_fair().
+
+In task_for_fair(), following things happen:
+- The CPU of the child process is set to the current processor.
+- Function update_curr() is called to update the vruntime of the current task, 
+i.e. the parent task.
+- The vruntime of the child process is set to the vruntime of parent process.
+- Function place_entity() is called to update the vruntime of child process, it 
+is the maximum between the CFS maximum vruntime, and the CFS minimum vruntime 
+plus the calculated vslice of the child task.
+- If the following three conditions are met: 1) sched_child_runs_first is 
+configured, 2) the sched_entity of current task is not null, 3) the vruntime of 
+the parent task is less than that of the child task, then it sets rescheduling 
+flag after swapping the vruntime of parent and child task.
+- The vruntime of the child task decrements by the CFS minimum vruntime.
+
+After this, at some point do_fork() will call wake_up_new_task(), and it selects 
+the CPU for the child task, then calls activate_task() to enqueue the task, 
+allowing the child task to be selected to run by the CFS.
+
+-------------------------------------------------------------------------------
+6.
+Explain how load balancing is done in the realtime scheduler in Linux 3.10.
+
+Answer:
+
+The RT scheduler calls balance_runtime() periodically by the function
+do_sched_rt_period_timer() or when the runtime exceeded(rt_throttled) by
+sched_rt_runtime_exceeded() after updating the current runtime of the rq. In
+balance_runtime(), it checks if the rq's rt_time exceeds the rt_runtime, if so
+it means this rq has run out of its runtime, then it calls do_balance_runtime()
+and tries to borrow/steal some runtime from other CPU. It traverses all other
+CPUs and takes part of that CPU rq's spare time if there is any, adds the time
+to its own runtime and goes to the next one, until its rt_runtime has reached
+the rt_period. In this way the RT scheduler balances the load of each CPU
+without explicitly moving tasks among CPUs.

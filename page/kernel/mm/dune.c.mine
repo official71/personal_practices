@@ -1,0 +1,148 @@
+#include <linux/kernel_stat.h>
+#include <linux/mm.h>
+#include <linux/hugetlb.h>
+#include <linux/mman.h>
+#include <linux/swap.h>
+#include <linux/highmem.h>
+#include <linux/pagemap.h>
+#include <linux/ksm.h>
+#include <linux/rmap.h>
+#include <linux/export.h>
+#include <linux/delayacct.h>
+#include <linux/init.h>
+#include <linux/writeback.h>
+#include <linux/memcontrol.h>
+#include <linux/mmu_notifier.h>
+#include <linux/kallsyms.h>
+#include <linux/swapops.h>
+#include <linux/elf.h>
+#include <linux/gfp.h>
+#include <linux/migrate.h>
+#include <linux/string.h>
+
+#include <asm/io.h>
+#include <asm/pgalloc.h>
+#include <asm/uaccess.h>
+#include <asm/tlb.h>
+#include <asm/tlbflush.h>
+#include <asm/pgtable.h>
+
+#include "internal.h"
+
+/* Investigate the page table layout
+ *
+ * The Page table layout varies over different architectures(eg. x86 vs arm).
+ * It also changes with the change of system configuration. 
+ * For example, setting Transparent_hugepage extends the pagesize from 4kb to 64kb.
+ * As a result, indexing with Virtual Address in page table waking
+ * differs from the case with 4k page size.
+ *
+ * You need to implement a system call
+ * to get the page table layout information of current system.
+ * @pgtbl_info : user address to store the related infomation
+ * @size : the memory size reserved for pgtbl_info
+ */
+ struct pagetable_layout_info {
+     uint32_t pgdir_shift;
+     uint32_t pmd_shift;
+     uint32_t page_shift;
+ };
+
+int __get_pagetable_layout(struct pagetable_layout_info __user * pgtbl_info,
+                         int size);
+
+/* Map a target process's Page Table into the current process's address space.
+ *
+ * After successfully completing this call,
+ * page_table_addr will contain part of page tables of the target process.
+ * To make it efficient for referencing 
+ * the re-mapped page tables in user space, your syscall is asked to build a 
+ * fake pgd and fake pmds.
+ * The fake pgd will be indexed by pgd_index(va),
+ * and the fake pmd will be indexed by pmd_index(va).
+ * (where va is a given virtual address). 
+ *
+ * @pid: pid of the target process you want to investigate,
+ *       if pid == -1, 
+ *       you should dump the current process's page tables
+ * @fake_pgd: base address of the fake pgd 
+ * @fake_pmds: base address of the fake pmds
+ * @page_table_addr: base address in user space the ptes mapped to
+ * [@begin_vaddr, @end_vaddr]: remapped memory range of the target process
+ */
+
+int __expose_page_table(pid_t pid,
+                      unsigned long fake_pgd,
+                      unsigned long fake_pmds,
+                      unsigned long page_table_addr,
+                      unsigned long begin_vaddr,
+                      unsigned long end_vaddr);
+
+
+/*
+ * Temporarily copying from mm/memory.c - copy_pte_range
+ * USE THIS AS FRAMEWORK
+ */
+
+int copy_pte_to_vma(struct mm_struct *src_mm, pte_t *src_pte,
+                   pmd_t *dst_pmd, pmd_t *src_pmd, struct vm_area_struct *vma,
+                   unsigned long addr, unsigned long end, void *begin_vaddr)
+{
+	unsigned long user_mapped_addr;
+	unsigned long phys_addr;
+        int progress = 0;
+        swp_entry_t entry = (swp_entry_t){0};
+	user_mapped_addr = (addr >> PAGE_SHIFT) / PTRS_PER_PTE * PAGE_SIZE;
+	user_mapped_addr += ((unsigned long)begin_vaddr);
+
+
+	vma = find_vma(src_mm, user_mapped_addr);
+	phys_addr = virt_to_phys(src_pte) >> PAGE_SHIFT;
+        arch_leave_lazy_mmu_mode();
+        pte_unmap(src_pte);
+        cond_resched();
+
+        if (entry.val) {
+                if (add_swap_count_continuation(entry, GFP_KERNEL) < 0)
+                        return -ENOMEM;
+                progress = 0;
+        }
+        if (addr != end)
+                return -1;
+        return 0;
+}
+
+/*
+ * Temporarily copying from mm/memory.c - copy_pmd_range
+ * USE THIS AS FRAMEWORK
+ */
+
+static inline int copy_pmd_to_vma(struct mm_struct *dst_mm, struct mm_struct *src_mm,
+                pud_t *dst_pud, pud_t *src_pud, struct vm_area_struct *vma,
+                unsigned long addr, unsigned long end)
+{
+        pmd_t *src_pmd, *dst_pmd;
+        unsigned long next;
+
+        dst_pmd = pmd_alloc(dst_mm, dst_pud, addr);
+        if (!dst_pmd)
+                return -ENOMEM;
+        src_pmd = pmd_offset(src_pud, addr);
+        do {
+                next = pmd_addr_end(addr, end);
+                if (pmd_trans_huge(*src_pmd)) {
+                        int err;
+                        VM_BUG_ON(next-addr != HPAGE_PMD_SIZE);
+                        err = copy_huge_pmd(dst_mm, src_mm,
+                                            dst_pmd, src_pmd, addr, vma);
+                        if (err == -ENOMEM)
+                                return -ENOMEM;
+                        if (!err)
+                                continue;
+                        /* fall through */
+                }
+                if (pmd_none_or_clear_bad(src_pmd))
+                        continue;
+        } while (dst_pmd++, src_pmd++, addr = next, addr != end);
+        return 0;
+}

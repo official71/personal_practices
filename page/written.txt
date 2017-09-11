@@ -1,0 +1,157 @@
+Exercise 7.20
+
+The offset is of 10 bits length.
+
+Address(decimal)	Page Number	Offsets
+3085			3 		13
+42095			41		111
+215201			210 		161
+650000			634		784
+2000001			1953		129
+
+-------------------------------------------------------------------------------
+Exercise 7.30
+
+Three memory operations needed: 1) accessing the section entry in memory, 2)
+accessing the page entry in memory, 3) accessing the physical memory indexed by
+offset.
+
+-------------------------------------------------------------------------------
+Exercise 7.32
+
+a)
+The selector portion of the logical address contains the segment information and
+is used to identify the address in the Global or Local Descriptor Table, the
+address is added by the offset portion of the logical address to form a linear
+address. The linear address is for paging, the first 10 bits are identify the
+page directory, where there is a page_size flag indicating whether it's 2-level
+or 3-level paging, if it's 2-level, the next 22 bits are offset in the 4MB page
+indexed by entry in page directory; for 3-level the next 10 bits are for the
+second level page table, and the last 12 bits are the offset in the 4KB page.
+The entry in the page is the physical address.
+
+b)
+
+Since the hardware provides both segmentation and pageing mechanism for memory
+management, the OS has less to care about mm at software level, resulting in a
+lighter kernel.
+
+c)
+The complicated translation can be slow and it provides the kernel with limited 
+choices of establishing its own paging mechanism.
+
+-------------------------------------------------------------------------------
+Exercise 8.14
+
+• TLB miss with no page fault: Entry does not exist in TLB because recent 
+references have removed it from TLB, however the entry has been put in memory so 
+there is an entry in page table and thus no page fault.
+
+• TLB miss and page fault: Entry does not exist in either TLB or the page table,
+a page fault is then trapped into the kernel. The entry has not been put in
+memory or is invalid in memory.
+
+• TLB hit and no page fault: Entry exists in both TLB and page table, it is 
+likely to be referred lately.
+
+• TLB hit and page fault: Should not happen. If the entry is missing in page 
+table, it should not exist in TLB and cause a hit.
+
+-------------------------------------------------------------------------------
+Exercise 8.21
+
+• LRU replacement
+
+7, 2, 3, 1, 2, 5, 3, 4, 6, 7, 7, 1, 0, 5, 4, 6, 2, 3, 0, 1
+f  f  f  f     f  f  f  f  f     f  f  f  f  f  f  f  f  f
+7  7  7  1     1  3  3  3  7     7  7  5  5  5  2  2  2  1
+   2  2  2     2  2  4  4  4     1  1  1  4  4  4  3  3  3
+      3  3     5  5  5  6  6     6  0  0  0  6  6  6  0  0
+
+18 faults.
+
+• FIFO replacement
+
+7, 2, 3, 1, 2, 5, 3, 4, 6, 7, 7, 1, 0, 5, 4, 6, 2, 3, 0, 1
+f  f  f  f     f     f  f  f     f  f  f  f  f  f  f  f  f
+7  7  7  1     1     1  6  6     6  0  0  0  6  6  6  0  0
+   2  2  2     5     5  5  7     7  7  5  5  5  2  2  2  1
+      3  3     3     4  4  4     1  1  1  4  4  4  3  3  3
+
+17 faults.
+
+• Optimal replacement
+
+7, 2, 3, 1, 2, 5, 3, 4, 6, 7, 7, 1, 0, 5, 4, 6, 2, 3, 0, 1
+f  f  f  f     f     f  f  f        f     f  f  f  f
+7  7  7  1     1     1  1  1        1     1  1  1  1
+   2  2  2     5     5  5  5        5     4  6  2  3
+      3  3     3     4  6  7        0     0  0  0  0
+
+13 faults.
+
+-------------------------------------------------------------------------------
+Exercise 8.22
+
+a)
+Page 	Page Frame 	Reference Bit
+0 	9 		0
+1 	1 		0
+2 	14 		0
+3 	10 		1
+4 	– 		0
+5 	13 		0
+6 	8 		0
+7 	15 		1
+8 	– 		0
+9 	0 		0
+10 	5 		1
+11 	4 		0
+12 	– 		0
+13 	– 		0
+14 	3 		1
+15 	2 		0
+
+• 0xE12C: 0x312C
+• 0x3A9D: 0xAA9D
+• 0xA9D9: 0x59D9
+• 0x7001: 0xF001
+• 0xACA1: 0x5CA1
+
+b)
+0x8ABC will access page #8 and leads to a page fault.
+
+c)
+The frames that have 0 Reference Bit: 9, 1, 14, 13, 8, 0, 4, 2.
+
+-------------------------------------------------------------------------------
+Exercise 8.30
+
+a)
+  i. Initial value: 0
+ ii. Counters increased when a page is associated with the frame
+iii. Counters decreased when a page is dissociated with the frame
+ iv. Replace the page of which the associated frame has smallest counter. If two
+     pages are tied, use LRU.
+
+b)
+(x,y) is (page,counter)
+
+1,  2,  3,  4,  5,  3,  4,  1,  6,  7,  8,  7,  8,  9,  7,  8,  9,  5,  4,  5,  4,  2
+f   f   f   f   f           f   f   f   f           f               f   f           f
+1,1 1,1 1,1 1,1 5,2         5,1 6,2 6,2 6,2         6,2             5,2 5,2         5,2
+    2,1 2,1 2,1 2,1         1,2 1,2 1,2 1,2         9,3             9,3 9,3         9,2
+        3,1 3,1 3,1         3,1 3,1 7,2 7,2         7,2             7,2 4,3         4,3
+            4,1 4,1         4,1 4,1 4,1 8,2         8,2             8,2 8,1         2,2
+
+13 faults.
+
+c)
+1, 2, 3, 4, 5, 3, 4, 1, 6, 7, 8, 7, 8, 9, 7, 8, 9, 5, 4, 5, 4, 2
+f  f  f  f  f           f  f  f        f              f        f
+1  1  1  1  1           6  6  8        8              8        8
+   2  2  2  5           5  5  5        5              5        2
+      3  3  3           3  7  7        7              4        4
+         4  4           4  4  4        9              9        9
+
+11 faults.

@@ -1,0 +1,151 @@
+1. Exercise 4.8
+
+Which of the following components of program state are shared across threads
+in a multithreaded process? 
+a. Register values 
+b. Heap memory 
+c. Global variables 
+d. Stack memory
+
+Answer:
+
+b. Heap memory and c. Global variables
+
+-------------------------------------------------------------------------------
+2. Exercise 4.16
+
+As described in Section 4.7.2, Linux does not distinguish between processes
+and threads. Instead, Linux treats both in the same way, allowing a task to be
+more akin to a process or a thread depending on the set of flags passed to the
+clone() system call. However, other operating systems, such as Windows, treat
+processes and threads differently. Typically, such systems use a notation in
+which the data structure for a process contains pointers to the separate
+threads belonging to the process. Contrast these two approaches for modeling
+processes and threads within the kernel.
+
+Answer:
+
+The Linux approach makes it easier for developers to create a thread in the
+codes, and also provides more flexibility to define what to share between the
+thread and its belonging process. However the Windows approach defines threads
+and processes more clearly as they are completely different data structures in
+the kernel, while in Linux both of them are represented by the notion of "task"
+and use "task_struct" as data structure, which makes managing threads in Linux
+less easier than in Windows.
+
+-------------------------------------------------------------------------------
+3. Exercise 5.10
+
+The first known correct software solution to the critical-section problem for
+two processes was developed by Dekker. The two processes, P0 and P1, share the
+following variables:         
+	boolean flag[2]; /* initially false */          
+	int turn; 
+The structure of process Pi (i == 0 or 1) is shown in Figure 5.25. The other 
+process is Pj (j == 1 or 0). Prove that the algorithm satisfies all three
+requirements for the critical-section problem.
+
+Answer:
+
+a. Mutual Exclusion: To enter the critical section Pi must not enter the while
+loop, i.e. flag[j] must be false. Meanwhile if Pi is currently in the critical
+section the flag[i] must be true. Therefore if both i and j are in the critical
+section at the same time, their flags must be both true, which conflicts with
+the first observation.
+
+b. Progress: When either process (say Pi) wants to enter the critical section
+but enters the while loop because the other process (say Pj) is currently in
+the critical section and flag[j] is true, it first checks the turn. Suppose at
+first turn is initialized as i, then Pi just spins on the outer while loop
+until Pj leaves the critical section and sets flag[j] to false; or if turn is
+initialized as j, then Pi sets flag[i] to false, and spins on the inner while
+loop until Pj leaves the critical section and sets turn to i, when Pi breaks
+the inner while loop, sets flag[i] to true, then breaks the outer loop and
+enters the critical section.
+
+c. Bounded Waiting: from the descriptions of b, when Pj leaves the critical
+section it sets turn to i so that Pi can set flag[i] be true, and if Pi now
+grabs the CPU time slice it will break the while loop and enters the critical
+section. Even if Pi fails to be scheduled and Pj wants again to enter the
+critical section and set flag[j] to true, it will enter the while loop since
+flag[i] is true. Now because of turn is i, Pj will enter the inner while loop
+and set flag[j] to false, therefore Pi and break the loop when it is scheduled
+to run and enter the critical section. So Pi will not wait forever to enter
+the critical section.
+
+-------------------------------------------------------------------------------
+4. Exercise 5.13
+
+Explain why interrupts are not appropriate for implementing synchronization 
+primitives in multiprocessor systems.
+
+Answer:
+
+To prevent other processes from interrupting into the critical section one
+must disable the interrupts on the CPU. But in a multiprocessor system a
+process on another CPU can still have access to the section. Even if it
+manages to disable interrupt on all CPUs, it is still not the best idea as all
+interrupts will not be responded until this single process finishes its
+critical section, which undermines the system performance.
+
+-------------------------------------------------------------------------------
+5. Exercise 5.14
+
+The Linux kernel has a policy that a process cannot hold a spinlock while 
+attempting to acquire a semaphore. Explain why this policy is in place.
+
+Answer:
+
+Spinlocks are intended to be held for a simple critical section and a short
+period of time, and is not allowed to be held while the process sleeps. When
+attempting to acquire a semaphore, a process can be put to sleep, thus
+violates the rules for spinlocks.
+
+-------------------------------------------------------------------------------
+6. Exercise 5.22
+
+Consider the code example for allocating and releasing processes shown in 
+Figure 5.27.
+a. Identify the race condition(s).
+b. Assume you have a mutex lock named mutex with the operations acquire() and 
+release(). Indicate where the locking needs to be placed to prevent the race 
+condition(s).
+c. Could we replace the integer variable
+	int number_of_processes = 0
+with the atomic integer
+	atomic_t number_of_processes = 0
+to prevent the race condition(s)?
+
+Answer:
+
+a. A race condition exists on the variable number_of_processes. After the
+variable is queried to make a decision, another process can change the value
+of this variable and make the decision invalid.
+
+b. The acquire() operation should be added at the beginning of each function
+and release() operation should be added right before returning from that
+function. Specifically for the allocate_process() function, which has two
+"return" statements, the release() should be called before both of them.
+
+c. The atomic_t will not prevent the race condition, as it only guarantees
+that the value of the variable is not changed by other processes when the
+current process reads or writes it. However after the atomic read/write
+another process can write it and when the current process access it after
+that, the value of the variable has been changed.
+
+-------------------------------------------------------------------------------
+7. Exercise 5.23
+
+Servers can be designed to limit the number of open connections. For example,
+a server may wish to have only N socket connections at any point in time. As
+soon as N connections are made, the server will not accept another incoming
+connection until an existing connection is released. Explain how semaphores
+can be used by a server to limit the number of concurrent connections.
+
+Answer:
+
+The semaphore can be initialized as N. When a connection is closed it calls
+signal() to increase the value of the semaphore by 1. Before a connection is
+to be established it calls wait() to check the semaphore value, which must be
+greater than zero for it to create a new connection. If the connection is
+established the semaphore value is decreased by 1.

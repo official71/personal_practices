@@ -9,5 +9,11 @@
 
 ### Above combination will ignore all files without extension ###
 
+!README
+!Makefile
+
 *.o
 *.gch
+*.tar.gz
+*.DS_Store
+

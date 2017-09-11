@@ -1,0 +1,162 @@
+Compiling and execution
+
+1. make -f Makefile;
+2. ./w4118_sh
+
+-------------------------------------------------------------------------------
+Files
+
+1. <main.c>    Containing main() of the project.
+2. <shell.h>   Defining macros, enumerations, important structures, and function
+               declarations, including data structure of a Singly Linked List to
+               manage the history list and pipe list, and several functions that
+               manipulate the lists.
+3. <shell.c>   Functions to implement the shell.
+
+-------------------------------------------------------------------------------
+Introduction of process
+
+The main shell runs an indefinite loop doing the following things:
+1. Print prompt character, wait for user input;
+2. Read user input to a string S;
+3. Parse S into individual command entries C, put all C in list PIPE;
+4. Execute the command(s) in PIPE:
+   4.1 If there is only one command C in PIPE, fork() a child process and call
+       execv() to execute, or for a built-in command dispense it to the specific
+       function that handles it;
+   4.2 If there are multiple commands {C} in PIPE, call pipe(), fork() and 
+       dup2() to open pipe and copy fd to stdin/stdout of each child process, 
+       then call execv() to execute. The parent proc calls wait() and waits for
+       all child processes to finish execution. Built-in commands are not 
+       supported in multiple command pipes;
+5. At the beginning of next loop, save previous user input string to HISTORY.
+
+-------------------------------------------------------------------------------
+Restrictions and assumptions
+
+1. User input can be of any length.
+2. Apart from the pipe character '|', no other characters are specially treated.
+3. Maximum number of pipes for each input must be specified, default 50.
+4. Maximum number of arguments for each command must be specified, default 100.
+5. Maximum number of entries in "history" list must be specified, default 100.
+
+-------------------------------------------------------------------------------
+References
+
+The information and external link provided on the homework instruction page are
+of great significance during the coding of this homework. Besides, Internet 
+resources, mainly "stackoverflow.com/" helped when I encountered a pointer-
+freeing issue.
+
+-------------------------------------------------------------------------------
+Test records
+
+w4118@w4118:~$ ./w4118_sh 
+$ls
+error: No such file or directory
+$/bin/ls
+Makefile    README      main.c      main.o      shell.c     shell.h     shell.h.gch shell.o     w4118_sh
+$/bin/ls -l
+total 1240
+-rw-r--r--@ 1 w4118 w4118     264 Sep 14 02:09 Makefile
+-rw-r--r--  1 w4118 w4118       5 Sep 19 20:38 README
+-rw-r--r--@ 1 w4118 w4118      77 Sep 19 19:24 main.c
+-rw-r--r--  1 w4118 w4118    2676 Sep 19 20:40 main.o
+-rw-r--r--  1 w4118 w4118   23777 Sep 19 19:23 shell.c
+-rw-r--r--  1 w4118 w4118    5306 Sep 19 19:16 shell.h
+-rw-r--r--  1 w4118 w4118  527520 Sep 19 19:23 shell.h.gch
+-rw-r--r--  1 w4118 w4118   30852 Sep 19 19:23 shell.o
+-rwxr-xr-x  1 w4118 w4118   23256 Sep 19 20:40 w4118_sh
+$/bin/ls -l | /bin/grep shell
+error: No such file or directory
+$/bin/ls -l | /usr/bin/grep shell
+-rw-r--r--  1 w4118 w4118   23777 Sep 19 19:23 shell.c
+-rw-r--r--  1 w4118 w4118    5306 Sep 19 19:16 shell.h
+-rw-r--r--  1 w4118 w4118  527520 Sep 19 19:23 shell.h.gch
+-rw-r--r--  1 w4118 w4118   30852 Sep 19 19:23 shell.o
+$/bin/echo hello world
+hello world
+$/bin/echo "hello world!"
+"hello world!"
+$
+$history
+  0	ls
+  1	/bin/ls
+  2	/bin/ls -l
+  3	/bin/ls -l | /bin/grep shell
+  4	/bin/ls -l | /usr/bin/grep shell
+  5	/bin/echo hello world
+  6	/bin/echo "hello world!"
+$
+$
+$cd /tmp
+$/bin/pwd
+/private/tmp
+$cd /var
+$/bin/pwd
+/private/var
+$/bin/ls
+agentx       audit        db           folders      jabberd      log          msgs         networkd     rpc          rwho         tmp          yp
+at           backups      empty        folders~orig lib          mail         netboot      root         run          spool        vm
+$
+$cd
+error: bad parameters
+$
+$cd /home/
+$
+$
+$history
+  0	ls
+  1	/bin/ls
+  2	/bin/ls -l
+  3	/bin/ls -l | /bin/grep shell
+  4	/bin/ls -l | /usr/bin/grep shell
+  5	/bin/echo hello world
+  6	/bin/echo "hello world!"
+  7	cd /tmp
+  8	/bin/pwd
+  9	cd /var
+ 10	/bin/pwd
+ 11	/bin/ls
+ 12	cd
+ 13	cd /home/
+$
+$
+$
+$history -c
+$history
+$
+$   foo bar | bar
+error: No such file or directory
+$ff
+error: No such file or directory
+$history
+  0	   foo bar | bar
+  1	ff
+$history -c
+$history
+$
+$
+$history xxx
+error: bad parameters
+$history
+$
+$/bin/echo hello   
+hello
+$
+$history
+  0	/bin/echo hello
+$history 0
+hello
+$/bin/echo blah    |    /usr/bin/cut -b 3,4
+ah
+$
+$history | /bin/grep hello
+error: command not supported in pipe
+$history
+  0	/bin/echo hello
+  1	/bin/echo blah    |    /usr/bin/cut -b 3,4
+  2	history | /bin/grep hello
+$
+$exit
+w4118@w4118:~$ 

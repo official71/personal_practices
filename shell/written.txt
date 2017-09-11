@@ -1,0 +1,178 @@
+------------------------------------------------------------------------------
+1.4 
+Keeping in mind the various definitions of operating system, consider
+whether the operating system should include applications such as web browsers
+and mail programs. Argue both that it should and that it should not, and
+support your answers.
+
+Answer: 
+If we define operating system as the kernel, or a resource allocator
+and a control program that allows system and user applications to run on the
+hardware underneath, then web browser and mail programs should not be
+considered part of the operating system. The web browser and mail program are
+applications that runs on the operating system. They utilizes the resources
+provided by the OS and is not essential parts for the system to run. For
+example, without an browser the computer or device can still communicate with
+other nodes on the web if the OS manages the network hardware properly.
+
+However from a user's point of view, they would complain if the OS they bought
+has no build-in web browser (even if they only need the browser to download
+another one). In a sense that an operating system can be defined as whatever
+the vendor includes in the package that provides basic human-use
+functionality, web browser and mail programs can be considered part of the
+operating system.
+
+------------------------------------------------------------------------------
+1.14 
+Under what circumstances would a user be better off using a time-sharing
+system than a PC or a single-user workstation?
+
+Answer: 
+Time-sharing systems allow multiple users to interact with the same
+system simultaneously with a reasonable response time. Unless the program that
+the user intends to run consumes almost all the resources (e.g. CPU and
+memory) the PC or workstation has, running on the user's own PC or workstation
+would be a waste of resource thus money. Under such circumstance would the
+user to better off using a time-sharing system, such as a remote Unix machine
+that he/she can log on along with other users.
+
+Another circumstance is when the program demands more resources than the PC or
+workstation has, under which the user could be better off using a time-sharing
+system such as a cloud computing server, which allocates resources dynamically
+as needed, instead of buying another PC or workstation with more computing
+capability thus money.
+
+------------------------------------------------------------------------------
+1.19 
+What is the purpose of interrupts? How does an interrupt differ from a
+trap? Can traps be generated intentionally by a user program? If so, for what
+purpose?
+
+Answer:
+Interrupts allow the CPU to pause from the instructions being executed and
+start dealing with an event triggered by hardware, a system call or a software
+error condition, which are privileged instructions compared with user
+instructions. In this way the user instructions and privileged ones can be
+treated with different priorities so as to ensure protection of system and
+other processes from malfunctions of certain user processes.
+
+A trap is generated only by software. It can be either a system call or an
+erroneous instruction (e.g. divided by zero) in the user program. The trap is
+treated as an interrupt to the CPU. Interrupts can be generated not only by
+software, but also by hardware such as I/O devices and network card.
+
+Traps can be generated intentionally by a user program, for example a system
+call. The purpose is to provide user program with the access to utilize system
+level services under the user-privilege mechanism.
+
+------------------------------------------------------------------------------
+1.27 
+Describe some of the challenges of designing operating systems for mobile
+devices compared with designing operating systems for traditional PCs.
+
+Answer:
+The major constrain for mobile devices is that they have less resources
+available than PCs, for example the CPU is not as powerful, the memory is not
+as big, the storage may not be as big, heating and the energy consumption is a
+much bigger problem. Moreover, considering most users expect their devices to
+response timely upon their request, the performance of computing should not be
+much inferior than PCs. Therefore following challenges may exist: 
+
+1. The kernel and system applications should be as small and efficient as
+possible, so as to maintain a minimum base of energy consumption.
+
+2. Although the code quality of user programs cannot be controlled by the OS,
+it must manage the CPU and memory consumption of user programs for a
+reasonable response time under stricter constrains.
+
+3. Assuming mobile devices are equipped with more applications that requires
+refreshing in the background, e.g. email, SNS and IM software, the OS must
+provide good management so they are efficiently performed.
+
+4. Mobile devices are usually for single-user and tends to be more personal
+with user's sensitive informations, the security of the OS is more valued by
+users than general PCs.
+
+------------------------------------------------------------------------------
+2.9 
+List five services provided by an operating system, and explain how each
+creates convenience for users. In which cases would it be impossible for user-
+level programs to provide these services? Explain your answer.
+
+Answer:
+1. User interface. It provides a user-friendly approach for users to operate
+on the OS. User-level programs can also provide such service, for example
+users can write their own shell programs.
+
+2. Program execution. It allows program to be loaded into memory and executed,
+as well as terminated either normally or abnormally. User-level programs
+cannot provide this service as they can only call the system to execute
+another program. They cannot directly load an executable file into memory.
+
+3. I/O operations. It provides a user with the ability to make user of all the
+I/O devices associated with the system. A user-level program cannot access the
+I/O devices directly without the OS, so it is impossible for user-level
+programs to provide this service.
+
+4. Communications. It allows a process to share data with other processes on
+the system or a remote system. A user-level program can also provide such
+service, for example instead of using shared memory it can use a file on the
+hard drive to send information to another running process.
+
+5. Resource allocation. It is one of the basic services an OS provides. All
+programs running on the system base on this service. A user-level program is
+impossible to allocation system resources by itself.
+
+------------------------------------------------------------------------------
+2.18 
+What are the two models of interprocess communication? What are the
+strengths and weaknesses of the two approaches?
+
+Answer:
+Interprocess communication can be done via either shared memory or by message
+passing.
+
+By shared memory processes can transfer data at maximum speed and convenience
+when the sharing is within a computer. However it demands special care in
+areas of memory protection and synchronization. For example two processes
+should not be writing to the same memory location at the same time. Moreover
+it is the programs' responsibility to ensure these protections rather than the
+OS, leaving the OS out of control towards these memories.
+
+By message passing processes need not worry about memory conflicts, and it
+comes more handy when it comes to intercomputer cases. On the other hand, it
+requires connection establishing and closing between processes, which consumes
+more resources. Besides it could cause more trouble when the data being
+transfered is large in size. Since it is unsynchronized, the processes have to
+deal with problems such as message fragmentation, blockage and race
+conditions. That's why most OS have both modes implemented.
+
+------------------------------------------------------------------------------
+2.21 
+What is the main advantage of the microkernel approach to system design?
+How do user programs and system services interact in a microkernel
+architecture? What are the disadvantages of using the microkernel approach?
+
+Answer:
+Microkernel approach removes all nonessential components from the kernel,
+which leads to a minimal kernel. The advantages are that it is easier to
+expand, as new functionalities are mostly implemented as system programs that
+lies above the kernel layer. It is also easier to port and more secure and
+reliable.
+
+User programs and system services do not interact directly, instead they
+communicate via message passing with the microkernel.
+
+Such interaction mechanism results in lower performance than other structures
+of OS, which is the major disadvantage of microkernel.
+
+------------------------------------------------------------------------------
+2.24 
+Explain why Java programs running on Android systems do not use the
+standard Java API and virtual machine.
+
+Answer:
+The Android systems provides its own set of libraries and virtual machine
+(Dalvik) because unlike the standard Java API and VM, these are specifically
+designed and optimized for Android, which is a mobile device operating system
+and expects the programs to run on limited memory and a slower CPU.
